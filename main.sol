@@ -670,3 +670,59 @@ contract Rezza_01_1x {
         if (!witnessArmed[msg.sender]) revert RZ1_NotWitness();
         if (!zoneRegistered[zoneId]) revert RZ1_ZoneMissing();
         if (bodyHashes.length == 0) revert RZ1_BatchEmpty();
+        if (bodyHashes.length > MAX_BATCH) revert RZ1_BatchTooLarge();
+        if (bodyHashes.length != glyphs.length) revert RZ1_BatchMismatch();
+        if (witnessStake[msg.sender] < MIN_WITNESS_STAKE) revert RZ1_StakeLow();
+        ZoneLane storage lane = zones[zoneId];
+        if (lane.muted) revert RZ1_ZoneMuted();
+        imprints = new bytes32[](bodyHashes.length);
+        uint64 seq = lane.lastSeq;
+        for (uint256 i = 0; i < bodyHashes.length; ) {
+            if (bodyHashes[i] == bytes32(0)) revert RZ1_ZeroBytes32();
+            unchecked {
+                seq++;
+            }
+            bytes32 imprint = RezzaCodec.imprintDigest(
+                zoneId,
+                bodyHashes[i],
+                msg.sender,
+                epoch,
+                seq,
+                uint64(block.timestamp)
+            );
+            if (imprintConsumed[imprint]) revert RZ1_ImprintUsed();
+            imprintConsumed[imprint] = true;
+            imprints[i] = imprint;
+            uint256 slot = ringHead % RING_DEPTH;
+            ring[slot] = ImprintCell({
+                imprint: imprint,
+                zoneId: zoneId,
+                glyph: glyphs[i],
+                witness: msg.sender,
+                epoch: epoch,
+                stamped: uint64(block.timestamp)
+            });
+            unchecked {
+                ringHead++;
+                liveImprints++;
+            }
+            emit RZ1_ImprintSealed(slot, zoneId, imprint, glyphs[i], msg.sender, epoch);
+            unchecked {
+                i++;
+            }
+        }
+        lane.lastSeq = seq;
+    }
+
+    /* ------------------------------------------------------------------ *
+     |  relay + sink delivery                                             |
+     * ------------------------------------------------------------------ */
+    function relayImprint(
+        bytes32 zoneId,
+        bytes32 bodyHash,
+        uint64 seq
+    ) external whenLatticeLive whenNotFrozen nonReentrant returns (bytes32 imprint) {
+        if (!relayerArmed[msg.sender]) revert RZ1_NotRelayer();
+        if (!zoneRegistered[zoneId]) revert RZ1_ZoneMissing();
+        ZoneLane storage lane = zones[zoneId];
+        if (lane.muted) revert RZ1_ZoneMuted();
