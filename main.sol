@@ -726,3 +726,59 @@ contract Rezza_01_1x {
         if (!zoneRegistered[zoneId]) revert RZ1_ZoneMissing();
         ZoneLane storage lane = zones[zoneId];
         if (lane.muted) revert RZ1_ZoneMuted();
+        if (bodyHash == bytes32(0)) revert RZ1_ZeroBytes32();
+        if (block.number < lastRelayBlock[msg.sender] + RELAY_COOLDOWN) revert RZ1_Cooldown();
+        if (seq <= lane.lastSeq) revert RZ1_SeqStale();
+        imprint = RezzaCodec.imprintDigest(zoneId, bodyHash, msg.sender, epoch, seq, uint64(block.timestamp));
+        if (imprintConsumed[imprint]) revert RZ1_ImprintUsed();
+        imprintConsumed[imprint] = true;
+        lane.lastSeq = seq;
+        lastRelayBlock[msg.sender] = block.number;
+        unchecked {
+            relayerNonce[msg.sender]++;
+        }
+        address sink = lane.sink;
+        if (sink != address(0)) {
+            _deliverToSink(sink, zoneId, imprint, msg.sender, seq);
+        }
+        emit RZ1_RelayAccepted(zoneId, imprint, msg.sender, seq, sink);
+    }
+
+    function relayWithPermit(
+        bytes32 zoneId,
+        bytes32 bodyHash,
+        uint64 seq,
+        uint64 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external whenLatticeLive whenNotFrozen nonReentrant returns (bytes32 imprint) {
+        if (!zoneRegistered[zoneId]) revert RZ1_ZoneMissing();
+        if (block.timestamp > deadline) revert RZ1_PermitExpired();
+        address signer = _recoverRelaySigner(zoneId, bodyHash, msg.sender, seq, deadline, v, r, s);
+        if (!relayerArmed[signer]) revert RZ1_NotRelayer();
+        ZoneLane storage lane = zones[zoneId];
+        if (lane.muted) revert RZ1_ZoneMuted();
+        if (bodyHash == bytes32(0)) revert RZ1_ZeroBytes32();
+        if (seq <= lane.lastSeq) revert RZ1_SeqStale();
+        imprint = RezzaCodec.imprintDigest(zoneId, bodyHash, signer, epoch, seq, uint64(block.timestamp));
+        if (imprintConsumed[imprint]) revert RZ1_ImprintUsed();
+        imprintConsumed[imprint] = true;
+        lane.lastSeq = seq;
+        unchecked {
+            relayerNonce[signer]++;
+        }
+        address sink = lane.sink;
+        if (sink != address(0)) {
+            _deliverToSink(sink, zoneId, imprint, signer, seq);
+        }
+        emit RZ1_RelayAccepted(zoneId, imprint, signer, seq, sink);
+    }
+
+    /* ------------------------------------------------------------------ *
+     |  closure commits                                                   |
+     * ------------------------------------------------------------------ */
+    function logClosure(bytes32 zoneId, bytes32 commit) external whenLatticeLive whenNotFrozen {
+        if (!zoneRegistered[zoneId]) revert RZ1_ZoneMissing();
+        if (commit == bytes32(0)) revert RZ1_ZeroBytes32();
+        bytes32 closureId = keccak256(abi.encodePacked(RZ1_AURORA_SEED, zoneId, commit, msg.sender));
