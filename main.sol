@@ -54,3 +54,59 @@ library RezzaCodec {
     }
 
     function imprintDigest(
+        bytes32 zoneId,
+        bytes32 bodyHash,
+        address author,
+        uint64 epoch,
+        uint64 seq,
+        uint64 stampedAt
+    ) internal pure returns (bytes32) {
+        return keccak256(abi.encode(zoneId, bodyHash, author, epoch, seq, stampedAt));
+    }
+
+    function relayLeaf(bytes32 left, bytes32 right) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(left, right));
+    }
+
+    function clampU64(uint256 v, uint64 lo, uint64 hi) internal pure returns (uint64) {
+        if (v < lo) return lo;
+        if (v > hi) return hi;
+        return uint64(v);
+    }
+
+    function clampU32(uint256 v, uint32 lo, uint32 hi) internal pure returns (uint32) {
+        if (v < lo) return lo;
+        if (v > hi) return hi;
+        return uint32(v);
+    }
+
+    function saturatingSub(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a > b ? a - b : 0;
+    }
+}
+
+library RezzaMerkle {
+    function verify(
+        bytes32 leaf,
+        bytes32[] memory proof,
+        bytes32 root,
+        uint256 index
+    ) internal pure returns (bool) {
+        bytes32 computed = leaf;
+        uint256 ptr = proof.length;
+        while (ptr > 0) {
+            unchecked {
+                ptr--;
+            }
+            bytes32 sibling = proof[ptr];
+            if ((index & 1) == 0) {
+                computed = keccak256(abi.encodePacked(computed, sibling));
+            } else {
+                computed = keccak256(abi.encodePacked(sibling, computed));
+            }
+            index >>= 1;
+        }
+        return computed == root;
+    }
+
+    function computeRoot(bytes32[] memory leaves) internal pure returns (bytes32) {
