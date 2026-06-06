@@ -614,3 +614,59 @@ contract Rezza_01_1x {
         witnessStake[msg.sender] = next;
         emit RZ1_StakeDeposited(msg.sender, msg.value, next);
     }
+
+    function releaseWitnessStake(uint256 amount) external nonReentrant {
+        if (!witnessArmed[msg.sender] && msg.sender != director) revert RZ1_NotWitness();
+        if (amount == 0) revert RZ1_BadInput();
+        uint256 held = witnessStake[msg.sender];
+        if (held < amount) revert RZ1_StakeLow();
+        if (held - amount < MIN_WITNESS_STAKE && msg.sender != director) revert RZ1_StakeLow();
+        witnessStake[msg.sender] = held - amount;
+        _sendNative(msg.sender, amount);
+        emit RZ1_StakeReleased(msg.sender, amount, witnessStake[msg.sender]);
+    }
+
+    /* ------------------------------------------------------------------ *
+     |  imprint sealing                                                   |
+     * ------------------------------------------------------------------ */
+    function sealImprint(
+        bytes32 zoneId,
+        bytes32 bodyHash,
+        bytes4 glyph,
+        uint64 seq
+    ) external whenLatticeLive whenNotFrozen nonReentrant returns (bytes32 imprint) {
+        if (!witnessArmed[msg.sender]) revert RZ1_NotWitness();
+        if (!zoneRegistered[zoneId]) revert RZ1_ZoneMissing();
+        ZoneLane storage lane = zones[zoneId];
+        if (lane.muted) revert RZ1_ZoneMuted();
+        if (bodyHash == bytes32(0)) revert RZ1_ZeroBytes32();
+        if (witnessStake[msg.sender] < MIN_WITNESS_STAKE) revert RZ1_StakeLow();
+        if (seq != lane.lastSeq + 1) revert RZ1_ZoneGap();
+        imprint = RezzaCodec.imprintDigest(zoneId, bodyHash, msg.sender, epoch, seq, uint64(block.timestamp));
+        if (imprintConsumed[imprint]) revert RZ1_ImprintUsed();
+        imprintConsumed[imprint] = true;
+        lane.lastSeq = seq;
+        uint256 slot = ringHead % RING_DEPTH;
+        ring[slot] = ImprintCell({
+            imprint: imprint,
+            zoneId: zoneId,
+            glyph: glyph,
+            witness: msg.sender,
+            epoch: epoch,
+            stamped: uint64(block.timestamp)
+        });
+        unchecked {
+            ringHead++;
+            liveImprints++;
+        }
+        emit RZ1_ImprintSealed(slot, zoneId, imprint, glyph, msg.sender, epoch);
+    }
+
+    function sealImprintBatch(
+        bytes32 zoneId,
+        bytes32[] calldata bodyHashes,
+        bytes4[] calldata glyphs
+    ) external whenLatticeLive whenNotFrozen nonReentrant returns (bytes32[] memory imprints) {
+        if (!witnessArmed[msg.sender]) revert RZ1_NotWitness();
+        if (!zoneRegistered[zoneId]) revert RZ1_ZoneMissing();
+        if (bodyHashes.length == 0) revert RZ1_BatchEmpty();
