@@ -558,3 +558,59 @@ contract Rezza_01_1x {
         if (!zoneRegistered[zoneId]) revert RZ1_ZoneMissing();
         zones[zoneId].sink = sink;
     }
+
+    /* ------------------------------------------------------------------ *
+     |  epoch + merkle roots                                              |
+     * ------------------------------------------------------------------ */
+    function nudgeEpoch() external whenLatticeLive whenNotFrozen {
+        if (!curatorArmed[msg.sender] && msg.sender != director) revert RZ1_NotCurator();
+        unchecked {
+            epoch++;
+        }
+        emit RZ1_EpochAdvanced(epoch, msg.sender);
+    }
+
+    function anchorEpochRoot(bytes32 root) external whenLatticeLive whenNotFrozen {
+        if (!curatorArmed[msg.sender] && msg.sender != director) revert RZ1_NotCurator();
+        if (root == bytes32(0)) revert RZ1_ZeroBytes32();
+        EpochRoot storage slot = epochRoots[epoch];
+        if (slot.set && slot.root == root) revert RZ1_BadInput();
+        slot.root = root;
+        slot.anchoredAt = uint64(block.timestamp);
+        slot.curator = msg.sender;
+        slot.set = true;
+        emit RZ1_RootAnchored(epoch, root, msg.sender);
+    }
+
+    function anchorEpochRootFromLeaves(bytes32[] calldata leaves) external whenLatticeLive whenNotFrozen {
+        if (!curatorArmed[msg.sender] && msg.sender != director) revert RZ1_NotCurator();
+        if (leaves.length == 0) revert RZ1_BatchEmpty();
+        if (leaves.length > MAX_BATCH) revert RZ1_BatchTooLarge();
+        bytes32[] memory buf = new bytes32[](leaves.length);
+        for (uint256 i = 0; i < leaves.length; ) {
+            if (leaves[i] == bytes32(0)) revert RZ1_ZeroBytes32();
+            buf[i] = leaves[i];
+            unchecked {
+                i++;
+            }
+        }
+        bytes32 root = RezzaMerkle.computeRoot(buf);
+        EpochRoot storage slot = epochRoots[epoch];
+        slot.root = root;
+        slot.anchoredAt = uint64(block.timestamp);
+        slot.curator = msg.sender;
+        slot.set = true;
+        emit RZ1_RootAnchored(epoch, root, msg.sender);
+    }
+
+    /* ------------------------------------------------------------------ *
+     |  witness stake                                                     |
+     * ------------------------------------------------------------------ */
+    function depositWitnessStake() external payable whenLatticeLive whenNotFrozen nonReentrant {
+        if (!witnessArmed[msg.sender]) revert RZ1_NotWitness();
+        if (msg.value == 0) revert RZ1_BadInput();
+        uint256 next = witnessStake[msg.sender] + msg.value;
+        if (next > MAX_WITNESS_STAKE) revert RZ1_BadInput();
+        witnessStake[msg.sender] = next;
+        emit RZ1_StakeDeposited(msg.sender, msg.value, next);
+    }
