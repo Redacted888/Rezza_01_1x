@@ -390,3 +390,59 @@ contract Rezza_01_1x {
         if (directorRenounced) revert RZ1_DirectorRenounced();
         if (msg.sender != director) revert RZ1_NotDirector();
         _;
+    }
+
+    modifier whenLatticeLive() {
+        if (!latticeLive) revert RZ1_BadInput();
+        _;
+    }
+
+    modifier whenNotFrozen() {
+        if (frozen) revert RZ1_LatticeFrozen();
+        _;
+    }
+
+    modifier nonReentrant() {
+        if (_gate != 0) revert RZ1_Reentry();
+        _gate = 1;
+        _;
+        _gate = 0;
+    }
+
+    /* ------------------------------------------------------------------ *
+     |  constructor                                                       |
+     * ------------------------------------------------------------------ */
+    constructor() {
+        director = msg.sender;
+        NORTH_RELAY_BOOT = 0x4bE8f2A7c1D9e6B3a0F5d8C2e7B1a4F9c6E0d3B7;
+        SOUTH_MIRROR_BOOT = 0x9a3C7e1F4b8D2a6E0c5B9f3A7d1E4c8B2f6A0d5E;
+        EAST_WITNESS_BOOT = 0xF6d2A9c4E7b1D8f0A3e6C9b2F5a8D1e4C7b0F3a6;
+        WEST_CUSTODY_BOOT = 0x2e7B4a9C1f6D3e8A0c5F2b7E4d9A1c6F3b8E0a5;
+        FEE_SINK_BOOT = 0x8D1f4a7C0e3B6A9d2F5c8E1b4A7d0C3e6F9b2A5;
+        LATTICE_IMPRINT = keccak256(
+            abi.encodePacked(RZ1_ORBIT_SEED, RZ1_TIDAL_SEED, NORTH_RELAY_BOOT, msg.sender, block.timestamp)
+        );
+        BORN_AT = uint64(block.timestamp);
+        _NAME_HASH = keccak256(bytes("Rezza_01_1x"));
+        _VERSION_HASH = keccak256(bytes("1"));
+        _DOMAIN_SEPARATOR = RezzaEIP712.domainSeparator(_NAME_HASH, _VERSION_HASH, block.chainid, address(this));
+        witnessArmed[EAST_WITNESS_BOOT] = true;
+        curatorArmed[NORTH_RELAY_BOOT] = true;
+        relayerArmed[SOUTH_MIRROR_BOOT] = true;
+        epochRoots[0] = EpochRoot({
+            root: RezzaMerkle.emptyRoot(),
+            anchoredAt: BORN_AT,
+            curator: NORTH_RELAY_BOOT,
+            set: true
+        });
+    }
+
+    /* ------------------------------------------------------------------ *
+     |  receive                                                           |
+     * ------------------------------------------------------------------ */
+    receive() external payable {
+        emit RZ1_NativeReceived(msg.sender, msg.value);
+    }
+
+    /* ------------------------------------------------------------------ *
+     |  director controls                                                 |
