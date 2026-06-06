@@ -278,3 +278,59 @@ contract Rezza_01_1x {
      |  constants + immutables                                            |
      * ------------------------------------------------------------------ */
     uint256 internal constant RING_DEPTH = 512;
+    uint256 internal constant MAX_BATCH = 48;
+    uint256 internal constant MIN_WITNESS_STAKE = 0.02 ether;
+    uint256 internal constant MAX_WITNESS_STAKE = 12 ether;
+    uint256 internal constant CLOSURE_LAG = 18;
+    uint256 internal constant CLOSURE_TTL = 86400;
+    uint256 internal constant RELAY_COOLDOWN = 4;
+    uint256 internal constant SCHEMA_CAP = 256;
+    uint256 internal constant ZONE_CAP = 1024;
+
+    bytes32 internal constant RZ1_ORBIT_SEED =
+        0x4e7a9c2f5b8d1e4a7c0f3b6e9a2d5c8f1b4e7a0c3f6b9d2e5a8c1f4b7e0d3a6;
+    bytes32 internal constant RZ1_TIDAL_SEED =
+        0x9b2e5a8c1f4b7e0d3a6f9c2d5b8e1a4c7f0b3e6a9d2f5c8b1e4a7c0f3b6e9a2d5;
+    bytes32 internal constant RZ1_AURORA_SEED =
+        0x1f8c3b6e9a2d5f8c1b4e7a0c3f6b9d2e5a8c1f4b7e0d3a6f9c2d5b8e1a4c7f0b3;
+
+    address public immutable NORTH_RELAY_BOOT;
+    address public immutable SOUTH_MIRROR_BOOT;
+    address public immutable EAST_WITNESS_BOOT;
+    address public immutable WEST_CUSTODY_BOOT;
+    address public immutable FEE_SINK_BOOT;
+    bytes32 public immutable LATTICE_IMPRINT;
+    uint64 public immutable BORN_AT;
+
+    bytes32 private immutable _NAME_HASH;
+    bytes32 private immutable _VERSION_HASH;
+    bytes32 private immutable _DOMAIN_SEPARATOR;
+
+    /* ------------------------------------------------------------------ *
+     |  storage structs                                                   |
+     * ------------------------------------------------------------------ */
+    struct ImprintCell {
+        bytes32 imprint;
+        bytes32 zoneId;
+        bytes4 glyph;
+        address witness;
+        uint64 epoch;
+        uint64 stamped;
+    }
+
+    struct ZoneLane {
+        uint96 meta;
+        uint64 lastSeq;
+        uint64 openedAt;
+        address sink;
+        bool muted;
+    }
+
+    struct SchemaEntry {
+        bytes32 schemaHash;
+        bool live;
+        uint64 registeredAt;
+    }
+
+    struct PendingClosure {
+        bytes32 zoneId;
