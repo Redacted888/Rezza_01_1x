@@ -110,3 +110,59 @@ library RezzaMerkle {
     }
 
     function computeRoot(bytes32[] memory leaves) internal pure returns (bytes32) {
+        uint256 len = leaves.length;
+        if (len == 0) return bytes32(0);
+        if (len == 1) return leaves[0];
+        while (len > 1) {
+            uint256 next = 0;
+            for (uint256 i = 0; i < len; i += 2) {
+                if (i + 1 < len) {
+                    leaves[next] = keccak256(abi.encodePacked(leaves[i], leaves[i + 1]));
+                } else {
+                    leaves[next] = keccak256(abi.encodePacked(leaves[i], leaves[i]));
+                }
+                unchecked {
+                    next++;
+                }
+            }
+            len = next;
+        }
+        return leaves[0];
+    }
+
+    function emptyRoot() internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(bytes32(0), bytes32(0)));
+    }
+}
+
+library RezzaBitmap {
+    function get(mapping(uint256 => uint256) storage map, uint256 index) internal view returns (bool) {
+        uint256 bucket = index >> 8;
+        uint256 bit = 1 << (index & 0xff);
+        return (map[bucket] & bit) != 0;
+    }
+
+    function set(mapping(uint256 => uint256) storage map, uint256 index) internal {
+        uint256 bucket = index >> 8;
+        uint256 bit = 1 << (index & 0xff);
+        map[bucket] |= bit;
+    }
+
+    function clear(mapping(uint256 => uint256) storage map, uint256 index) internal {
+        uint256 bucket = index >> 8;
+        uint256 bit = 1 << (index & 0xff);
+        map[bucket] &= ~bit;
+    }
+}
+
+library RezzaEIP712 {
+    bytes32 internal constant DOMAIN_TYPEHASH =
+        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+    bytes32 internal constant RELAY_PERMIT_TYPEHASH =
+        keccak256(
+            "RezzaRelayPermit(bytes32 zoneId,bytes32 bodyHash,address relayer,uint64 epoch,uint64 seq,uint64 deadline)"
+        );
+
+    function domainSeparator(
+        bytes32 nameHash,
+        bytes32 versionHash,
