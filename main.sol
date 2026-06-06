@@ -446,3 +446,59 @@ contract Rezza_01_1x {
 
     /* ------------------------------------------------------------------ *
      |  director controls                                                 |
+     * ------------------------------------------------------------------ */
+    function transferDirector(address next) external onlyDirector {
+        if (next == address(0)) revert RZ1_ZeroAddress();
+        if (next == director) revert RZ1_SameDirector();
+        pendingDirector = next;
+    }
+
+    function acceptDirector() external {
+        if (pendingDirector == address(0)) revert RZ1_NotPendingDirector();
+        if (msg.sender != pendingDirector) revert RZ1_NotPendingDirector();
+        address prev = director;
+        director = pendingDirector;
+        pendingDirector = address(0);
+        emit RZ1_DirectorShifted(prev, director);
+    }
+
+    function renounceDirector() external onlyDirector {
+        directorRenounced = true;
+        director = address(0);
+        pendingDirector = address(0);
+        emit RZ1_DirectorShifted(msg.sender, address(0));
+    }
+
+    function igniteLattice(bool live) external onlyDirector {
+        latticeLive = live;
+        emit RZ1_LatticeIgnited(live);
+    }
+
+    function setFrozen(bool on) external onlyDirector {
+        frozen = on;
+        emit RZ1_FreezeToggled(on);
+    }
+
+    function armWitness(address witness, bool armed) external onlyDirector {
+        if (witness == address(0)) revert RZ1_ZeroAddress();
+        witnessArmed[witness] = armed;
+        emit RZ1_WitnessArmed(witness, armed);
+    }
+
+    function armCurator(address curator, bool armed) external onlyDirector {
+        if (curator == address(0)) revert RZ1_ZeroAddress();
+        curatorArmed[curator] = armed;
+        emit RZ1_CuratorArmed(curator, armed);
+    }
+
+    function armRelayer(address relayer, bool armed) external onlyDirector {
+        if (relayer == address(0)) revert RZ1_ZeroAddress();
+        relayerArmed[relayer] = armed;
+        emit RZ1_RelayerArmed(relayer, armed);
+    }
+
+    function lockTreasury(uint256 until) external onlyDirector {
+        treasuryLockUntil = until;
+    }
+
+    /* ------------------------------------------------------------------ *
