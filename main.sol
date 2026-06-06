@@ -222,3 +222,59 @@ contract Rezza_01_1x {
     error RZ1_EpochDrift();
     error RZ1_RootStale();
     error RZ1_RootMissing();
+    error RZ1_WitnessArmed();
+    error RZ1_WitnessDisarmed();
+    error RZ1_StakeLow();
+    error RZ1_TreasuryLocked();
+    error RZ1_NativeOnly();
+    error RZ1_TransferFailed();
+    error RZ1_TokenPullFailed();
+    error RZ1_SinkReject();
+    error RZ1_SameDirector();
+    error RZ1_ClosureActive();
+    error RZ1_ClosureMissing();
+    error RZ1_ClosureFinalized();
+    error RZ1_ClosureWindow();
+    error RZ1_RingSaturated();
+    error RZ1_Cooldown();
+
+    /* ------------------------------------------------------------------ *
+     |  events                                                            |
+     * ------------------------------------------------------------------ */
+    event RZ1_DirectorShifted(address indexed from, address indexed to);
+    event RZ1_LatticeIgnited(bool live);
+    event RZ1_FreezeToggled(bool frozen);
+    event RZ1_WitnessArmed(address indexed witness, bool armed);
+    event RZ1_CuratorArmed(address indexed curator, bool armed);
+    event RZ1_RelayerArmed(address indexed relayer, bool armed);
+    event RZ1_ZoneOpened(bytes32 indexed zoneId, string slug, uint32 tier, uint16 schema);
+    event RZ1_ZoneMuted(bytes32 indexed zoneId, bool muted);
+    event RZ1_SchemaRegistered(uint16 indexed schemaId, bytes32 schemaHash);
+    event RZ1_EpochAdvanced(uint64 epoch, address indexed nudger);
+    event RZ1_ImprintSealed(
+        uint256 indexed slot,
+        bytes32 zoneId,
+        bytes32 imprint,
+        bytes4 glyph,
+        address witness,
+        uint64 epoch
+    );
+    event RZ1_RelayAccepted(
+        bytes32 indexed zoneId,
+        bytes32 imprint,
+        address indexed relayer,
+        uint64 seq,
+        address sink
+    );
+    event RZ1_RootAnchored(uint64 indexed epoch, bytes32 root, address indexed curator);
+    event RZ1_ClosureOpened(bytes32 indexed closureId, bytes32 zoneId, uint64 unlockAt);
+    event RZ1_ClosureFinalized(bytes32 indexed closureId, bytes32 imprint);
+    event RZ1_StakeDeposited(address indexed witness, uint256 amount, uint256 total);
+    event RZ1_StakeReleased(address indexed witness, uint256 amount, uint256 total);
+    event RZ1_TreasurySweep(address indexed token, address indexed to, uint256 amount);
+    event RZ1_NativeReceived(address indexed from, uint256 amount);
+
+    /* ------------------------------------------------------------------ *
+     |  constants + immutables                                            |
+     * ------------------------------------------------------------------ */
+    uint256 internal constant RING_DEPTH = 512;
