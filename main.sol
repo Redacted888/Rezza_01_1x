@@ -334,3 +334,59 @@ contract Rezza_01_1x {
 
     struct PendingClosure {
         bytes32 zoneId;
+        bytes32 commit;
+        uint64 unlockAt;
+        uint64 loggedAt;
+        bool finalized;
+    }
+
+    struct EpochRoot {
+        bytes32 root;
+        uint64 anchoredAt;
+        address curator;
+        bool set;
+    }
+
+    /* ------------------------------------------------------------------ *
+     |  state                                                             |
+     * ------------------------------------------------------------------ */
+    address public director;
+    address public pendingDirector;
+    bool public directorRenounced;
+    bool public latticeLive;
+    bool public frozen;
+    uint64 public epoch;
+    uint256 public ringHead;
+    uint256 public liveImprints;
+    uint256 private _gate;
+
+    mapping(address => bool) public witnessArmed;
+    mapping(address => bool) public curatorArmed;
+    mapping(address => bool) public relayerArmed;
+    mapping(address => uint256) public witnessStake;
+    mapping(address => uint256) public witnessNonce;
+    mapping(address => uint256) public relayerNonce;
+    mapping(address => uint256) public lastRelayBlock;
+
+    mapping(bytes32 => ZoneLane) public zones;
+    mapping(bytes32 => bool) public zoneRegistered;
+    mapping(uint16 => SchemaEntry) public schemas;
+    mapping(uint16 => bool) public schemaRegistered;
+    mapping(bytes32 => bool) public imprintConsumed;
+    mapping(bytes32 => PendingClosure) public closures;
+    mapping(uint64 => EpochRoot) public epochRoots;
+    mapping(uint256 => ImprintCell) public ring;
+    mapping(uint256 => uint256) public relayBitmap;
+
+    uint256 public zoneCount;
+    uint256 public schemaCount;
+    uint256 public closureCount;
+    uint256 public treasuryLockUntil;
+
+    /* ------------------------------------------------------------------ *
+     |  modifiers                                                         |
+     * ------------------------------------------------------------------ */
+    modifier onlyDirector() {
+        if (directorRenounced) revert RZ1_DirectorRenounced();
+        if (msg.sender != director) revert RZ1_NotDirector();
+        _;
