@@ -166,3 +166,59 @@ library RezzaEIP712 {
     function domainSeparator(
         bytes32 nameHash,
         bytes32 versionHash,
+        uint256 chainId,
+        address verifyingContract
+    ) internal pure returns (bytes32) {
+        return keccak256(abi.encode(DOMAIN_TYPEHASH, nameHash, versionHash, chainId, verifyingContract));
+    }
+
+    function relayDigest(
+        bytes32 domainSeparator_,
+        bytes32 zoneId,
+        bytes32 bodyHash,
+        address relayer,
+        uint64 epoch,
+        uint64 seq,
+        uint64 deadline
+    ) internal pure returns (bytes32) {
+        bytes32 structHash = keccak256(
+            abi.encode(RELAY_PERMIT_TYPEHASH, zoneId, bodyHash, relayer, epoch, seq, deadline)
+        );
+        return keccak256(abi.encodePacked("\x19\x01", domainSeparator_, structHash));
+    }
+}
+
+contract Rezza_01_1x {
+    using RezzaCodec for bytes32;
+    using RezzaBitmap for mapping(uint256 => uint256);
+
+    /* ------------------------------------------------------------------ *
+     |  custom errors                                                     |
+     * ------------------------------------------------------------------ */
+    error RZ1_NotDirector();
+    error RZ1_NotPendingDirector();
+    error RZ1_NotWitness();
+    error RZ1_NotCurator();
+    error RZ1_NotRelayer();
+    error RZ1_DirectorRenounced();
+    error RZ1_LatticeFrozen();
+    error RZ1_Reentry();
+    error RZ1_ZeroAddress();
+    error RZ1_ZeroBytes32();
+    error RZ1_BadInput();
+    error RZ1_ZoneExists();
+    error RZ1_ZoneMissing();
+    error RZ1_ZoneMuted();
+    error RZ1_ZoneGap();
+    error RZ1_SchemaExists();
+    error RZ1_SchemaMissing();
+    error RZ1_ImprintUsed();
+    error RZ1_BatchTooLarge();
+    error RZ1_BatchEmpty();
+    error RZ1_BatchMismatch();
+    error RZ1_SeqStale();
+    error RZ1_PermitExpired();
+    error RZ1_InvalidSignature();
+    error RZ1_EpochDrift();
+    error RZ1_RootStale();
+    error RZ1_RootMissing();
