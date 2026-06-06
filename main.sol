@@ -502,3 +502,59 @@ contract Rezza_01_1x {
     }
 
     /* ------------------------------------------------------------------ *
+     |  schema + zone administration                                      |
+     * ------------------------------------------------------------------ */
+    function registerSchema(uint16 schemaId, bytes32 schemaHash) external onlyDirector {
+        if (schemaHash == bytes32(0)) revert RZ1_ZeroBytes32();
+        if (schemaRegistered[schemaId]) revert RZ1_SchemaExists();
+        if (schemaCount >= SCHEMA_CAP) revert RZ1_BadInput();
+        schemas[schemaId] = SchemaEntry({schemaHash: schemaHash, live: true, registeredAt: uint64(block.timestamp)});
+        schemaRegistered[schemaId] = true;
+        unchecked {
+            schemaCount++;
+        }
+        emit RZ1_SchemaRegistered(schemaId, schemaHash);
+    }
+
+    function muteSchema(uint16 schemaId, bool live) external onlyDirector {
+        if (!schemaRegistered[schemaId]) revert RZ1_SchemaMissing();
+        schemas[schemaId].live = live;
+    }
+
+    function openZone(
+        string calldata slug,
+        uint32 tier,
+        uint16 schemaId,
+        uint32 ttl,
+        address sink
+    ) external onlyDirector returns (bytes32 zoneId) {
+        if (bytes(slug).length == 0 || bytes(slug).length > 64) revert RZ1_BadInput();
+        if (!schemaRegistered[schemaId]) revert RZ1_SchemaMissing();
+        if (!schemas[schemaId].live) revert RZ1_SchemaMissing();
+        if (zoneCount >= ZONE_CAP) revert RZ1_BadInput();
+        zoneId = RezzaCodec.zoneKey(slug, tier);
+        if (zoneRegistered[zoneId]) revert RZ1_ZoneExists();
+        zones[zoneId] = ZoneLane({
+            meta: RezzaCodec.packZoneMeta(tier, ttl, schemaId, true),
+            lastSeq: 0,
+            openedAt: uint64(block.timestamp),
+            sink: sink,
+            muted: false
+        });
+        zoneRegistered[zoneId] = true;
+        unchecked {
+            zoneCount++;
+        }
+        emit RZ1_ZoneOpened(zoneId, slug, tier, schemaId);
+    }
+
+    function muteZone(bytes32 zoneId, bool muted) external onlyDirector {
+        if (!zoneRegistered[zoneId]) revert RZ1_ZoneMissing();
+        zones[zoneId].muted = muted;
+        emit RZ1_ZoneMuted(zoneId, muted);
+    }
+
+    function retargetZoneSink(bytes32 zoneId, address sink) external onlyDirector {
+        if (!zoneRegistered[zoneId]) revert RZ1_ZoneMissing();
+        zones[zoneId].sink = sink;
+    }
