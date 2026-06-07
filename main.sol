@@ -838,3 +838,59 @@ contract Rezza_01_1x {
         address author,
         uint64 epoch_,
         uint64 seq,
+        uint64 stampedAt,
+        bytes32[] calldata proof,
+        uint256 index,
+        uint64 epochLookup
+    ) external view returns (bool) {
+        bytes32 leaf = RezzaCodec.imprintDigest(zoneId, bodyHash, author, epoch_, seq, stampedAt);
+        EpochRoot storage slot = epochRoots[epochLookup];
+        if (!slot.set) revert RZ1_RootMissing();
+        return RezzaMerkle.verify(leaf, proof, slot.root, index);
+    }
+
+    function domainSeparator() external view returns (bytes32) {
+        return _DOMAIN_SEPARATOR;
+    }
+
+    function zoneMeta(bytes32 zoneId) external view returns (uint32 tier, uint32 ttl, uint16 schema, bool live) {
+        if (!zoneRegistered[zoneId]) revert RZ1_ZoneMissing();
+        uint96 meta = zones[zoneId].meta;
+        tier = RezzaCodec.unpackTier(meta);
+        ttl = RezzaCodec.unpackTtl(meta);
+        schema = RezzaCodec.unpackSchema(meta);
+        live = RezzaCodec.unpackLive(meta);
+    }
+
+    function ringCell(uint256 absoluteSlot) external view returns (ImprintCell memory cell) {
+        if (absoluteSlot >= ringHead) revert RZ1_BadInput();
+        cell = ring[absoluteSlot % RING_DEPTH];
+    }
+
+    function recentRingWindow(uint256 count) external view returns (ImprintCell[] memory cells) {
+        if (count > RING_DEPTH) revert RZ1_BadInput();
+        if (ringHead == 0) {
+            return new ImprintCell[](0);
+        }
+        uint256 available = ringHead < RING_DEPTH ? ringHead : RING_DEPTH;
+        if (count > available) count = available;
+        cells = new ImprintCell[](count);
+        uint256 start = ringHead - count;
+        for (uint256 i = 0; i < count; ) {
+            cells[i] = ring[(start + i) % RING_DEPTH];
+            unchecked {
+                i++;
+            }
+        }
+    }
+
+    function latticeFingerprint() external view returns (bytes32) {
+        return keccak256(
+            abi.encodePacked(
+                LATTICE_IMPRINT,
+                epoch,
+                ringHead,
+                liveImprints,
+                zoneCount,
+                schemaCount,
+                latticeLive,
