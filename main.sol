@@ -782,3 +782,59 @@ contract Rezza_01_1x {
         if (!zoneRegistered[zoneId]) revert RZ1_ZoneMissing();
         if (commit == bytes32(0)) revert RZ1_ZeroBytes32();
         bytes32 closureId = keccak256(abi.encodePacked(RZ1_AURORA_SEED, zoneId, commit, msg.sender));
+        if (closures[closureId].loggedAt != 0) revert RZ1_ClosureActive();
+        uint64 unlockAt = uint64(block.timestamp + CLOSURE_LAG);
+        closures[closureId] = PendingClosure({
+            zoneId: zoneId,
+            commit: commit,
+            unlockAt: unlockAt,
+            loggedAt: uint64(block.timestamp),
+            finalized: false
+        });
+        unchecked {
+            closureCount++;
+        }
+        emit RZ1_ClosureOpened(closureId, zoneId, unlockAt);
+    }
+
+    function finalizeClosure(bytes32 closureId, bytes32 bodyHash, bytes4 glyph) external whenLatticeLive whenNotFrozen {
+        PendingClosure storage pending = closures[closureId];
+        if (pending.loggedAt == 0) revert RZ1_ClosureMissing();
+        if (pending.finalized) revert RZ1_ClosureFinalized();
+        if (block.timestamp < pending.unlockAt) revert RZ1_ClosureWindow();
+        if (block.timestamp > pending.loggedAt + CLOSURE_TTL) revert RZ1_ClosureWindow();
+        bytes32 revealed = keccak256(abi.encodePacked(bodyHash, glyph, msg.sender));
+        if (revealed != pending.commit) revert RZ1_BadInput();
+        bytes32 imprint = keccak256(abi.encodePacked(pending.zoneId, revealed, closureId));
+        imprintConsumed[imprint] = true;
+        pending.finalized = true;
+        emit RZ1_ClosureFinalized(closureId, imprint);
+    }
+
+    /* ------------------------------------------------------------------ *
+     |  treasury                                                          |
+     * ------------------------------------------------------------------ */
+    function sweepNativeTreasury(address to, uint256 amount) external onlyDirector nonReentrant {
+        if (block.timestamp < treasuryLockUntil) revert RZ1_TreasuryLocked();
+        if (to == address(0)) revert RZ1_ZeroAddress();
+        _sendNative(to, amount);
+        emit RZ1_TreasurySweep(address(0), to, amount);
+    }
+
+    function sweepTokenTreasury(address token, address to, uint256 amount) external onlyDirector nonReentrant {
+        if (block.timestamp < treasuryLockUntil) revert RZ1_TreasuryLocked();
+        if (token == address(0) || to == address(0)) revert RZ1_ZeroAddress();
+        bool ok = IERC20Minimal(token).transfer(to, amount);
+        if (!ok) revert RZ1_TokenPullFailed();
+        emit RZ1_TreasurySweep(token, to, amount);
+    }
+
+    /* ------------------------------------------------------------------ *
+     |  verification views                                                |
+     * ------------------------------------------------------------------ */
+    function verifyImprintInRoot(
+        bytes32 zoneId,
+        bytes32 bodyHash,
+        address author,
+        uint64 epoch_,
+        uint64 seq,
